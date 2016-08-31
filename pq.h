@@ -45,14 +45,14 @@ struct pq_head {
 typedef struct pqn pqn;
 typedef struct pq_head pq_head;
 #define PQ_HEAD_INIT (pq_head){NULL,PTHREAD_MUTEX_INITIALIZER,PTHREAD_COND_INITIALIZER}
-extern inline void pq_head_init(pq_head *h)
+static inline void pq_head_init(pq_head *h)
 {
 	h->first = NULL;
 	pthread_mutex_init(&h->lock, NULL);
 	pthread_cond_init(&h->cond, NULL);
 }
 
-extern inline int pthread_cond_timedwait_ms(pthread_cond_t *cond, pthread_mutex_t *lock, unsigned timeout)
+static inline int __pthread_cond_timedwait_ms(pthread_cond_t *cond, pthread_mutex_t *lock, unsigned timeout)
 {
         int status;
         struct timespec ts;
@@ -68,7 +68,7 @@ extern inline int pthread_cond_timedwait_ms(pthread_cond_t *cond, pthread_mutex_
         return status;
 }
 
-extern inline pqn* pqn_new(void *p)
+static inline pqn* pqn_new(void *p)
 {
 	pqn *n = calloc(sizeof(*n), 1);
 	assert(n);
@@ -76,12 +76,12 @@ extern inline pqn* pqn_new(void *p)
 	return n;
 }
 
-extern inline bool pq_isempty(pq_head *h)
+static inline bool pq_isempty(pq_head *h)
 {
 	return h->first == NULL;
 }
 
-extern inline int pq_put_head(pq_head *h, pqn *n)
+static inline int pq_put_head(pq_head *h, pqn *n)
 {
 	pthread_mutex_lock(&h->lock);
 	n->next = h->first;
@@ -96,7 +96,7 @@ extern inline int pq_put_head(pq_head *h, pqn *n)
 		int status = 0;\
 		while (!(predicate) && status == 0) {\
 			if ((tout_ms) > 0) {\
-				status = pthread_cond_timedwait_ms(cond, lock, tout_ms);\
+				status = __pthread_cond_timedwait_ms(cond, lock, tout_ms);\
 			} else {\
 				status = pthread_cond_wait(cond, lock);\
 			}\
@@ -114,7 +114,7 @@ extern inline int pq_put_head(pq_head *h, pqn *n)
 		lbo;\
 	})
 
-extern inline pqn *pq_get_tail(pq_head *h, unsigned timeout)
+static inline pqn *pq_get_tail(pq_head *h, unsigned timeout)
 {
 	pqn *retptr = NULL;
 	pthread_mutex_lock(&h->lock);
