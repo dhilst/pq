@@ -22,6 +22,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
@@ -90,13 +91,9 @@ extern inline int pq_put_head(pq_head *h, pqn *n)
 	return 0;
 }
 
-/* NOTE THAT THIS "RETURNS" WITH LOCK HELD
- * THE CALLER *MUST* RELEASE THE LOCK. 
- */
 #define wait_boilerplate(predicate, cond, lock, tout_ms)\
 	({\
-		int status;\
-		pthread_mutex_lock(lock);\
+		int status = 0;\
 		while (!(predicate) && status == 0) {\
 			if ((tout_ms) > 0) {\
 				status = pthread_cond_timedwait_ms(cond, lock, tout_ms);\
@@ -120,10 +117,13 @@ extern inline int pq_put_head(pq_head *h, pqn *n)
 extern inline pqn *pq_get_tail(pq_head *h, unsigned timeout)
 {
 	pqn *retptr = NULL;
+	pthread_mutex_lock(&h->lock);
 	int status = wait_boilerplate(!pq_isempty(h), &h->cond, &h->lock, timeout);
-	/* h->lock taken by wait_bolierplate */
-	if (status == ETIMEDOUT)
+	if (status == -1) {
+		fprintf(stderr, "Error: %s", strerror(errno));
 		goto out;
+	}
+
 	if (!h->first->next) { /* first is the last, one elem/ list */
 		retptr = h->first;
 		h->first = NULL;

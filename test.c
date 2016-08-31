@@ -12,6 +12,8 @@ void *t1(void *arg)
 	(void)arg; /* supress warnigs */
 	while (true) {
 		pqn *data = pq_get_tail(&t1_head, 0);
+		assert(data);
+		sprintf((char *)data->data, "PING");
 		printf("%s => %s\n", __func__, (char *)data->data);
 		pq_put_head(&t2_head, data);
 	}
@@ -23,6 +25,8 @@ void *t2(void *arg)
 	(void)arg; /* supress warnings */
 	while (true) {
 		pqn *data = pq_get_tail(&t2_head, 0);
+		assert(data);
+		sprintf((char *)data->data, "PONG");
 		printf("%s => %s\n", __func__, (char *)data->data);
 		pq_put_head(&t1_head, data);
 	}
@@ -32,12 +36,12 @@ void *t2(void *arg)
 int main(void)
 {
 	pthread_t t1id, t2id;
-	pqn *ping = pqn_new("PING");
-	pqn *pong = pqn_new("PONG");
-	pq_put_head(&t1_head, ping);
-	pq_put_head(&t2_head, pong);
+	char msg[] = "PING";
+
 	pthread_create(&t1id, NULL, t1, NULL);
 	pthread_create(&t2id, NULL, t2, NULL);
+
+	pq_put_head(&t1_head, pqn_new(msg));
 
 	while (true)
 		sleep(~0l);
