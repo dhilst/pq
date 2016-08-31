@@ -30,9 +30,6 @@
 extern "C" {
 #endif
 
-/* Needed to get struct timespec with -pedantic -ansi */
-#define _XOPEN_SOURCE 600
-
 struct pqn { /* pthread queue node */
 	void *data;
 	struct pqn *next;
