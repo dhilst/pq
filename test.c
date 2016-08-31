@@ -10,26 +10,28 @@ static pq_head t2_head = PQ_HEAD_INIT;
 void *t1(void *arg)
 {
 	(void)arg; /* supress warnigs */
-	while (true) {
+	while (pq_continue(&t1_head)) {
 		pqn *data = pq_get_tail(&t1_head, 0);
 		assert(data);
 		sprintf((char *)data->data, "PING");
 		printf("%s => %s\n", __func__, (char *)data->data);
 		pq_put_head(&t2_head, data);
 	}
+	printf("%s terminated\n", __func__);
 	return NULL;
 }
 
 void *t2(void *arg)
 {
 	(void)arg; /* supress warnings */
-	while (true) {
+	while (pq_continue(&t2_head)) {
 		pqn *data = pq_get_tail(&t2_head, 0);
 		assert(data);
 		sprintf((char *)data->data, "PONG");
 		printf("%s => %s\n", __func__, (char *)data->data);
 		pq_put_head(&t1_head, data);
 	}
+	printf("%s terminated\n", __func__);
 	return NULL;
 }
 
@@ -43,7 +45,9 @@ int main(void)
 
 	pq_put_head(&t1_head, pqn_new(msg));
 
-	while (true)
-		sleep(~0l);
+	sleep(3);
+
+	pq_terminate(&t1_head);
+	pq_terminate(&t2_head);
 	return 0;
 }

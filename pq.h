@@ -40,11 +40,13 @@ struct pq_head {
 	struct pqn *first;
 	pthread_mutex_t lock;
 	pthread_cond_t cond;
+	bool terminate;
 };
 
 typedef struct pqn pqn;
 typedef struct pq_head pq_head;
-#define PQ_HEAD_INIT (pq_head){NULL,PTHREAD_MUTEX_INITIALIZER,PTHREAD_COND_INITIALIZER}
+
+#define PQ_HEAD_INIT (pq_head){NULL,PTHREAD_MUTEX_INITIALIZER,PTHREAD_COND_INITIALIZER,false}
 static inline void pq_head_init(pq_head *h)
 {
 	h->first = NULL;
@@ -136,6 +138,19 @@ out:
 	pthread_mutex_unlock(&h->lock);
 	return retptr;
 }
+
+static inline void pq_terminate(pq_head *h)
+{
+	h->terminate = true;
+	pthread_cond_broadcast(&h->cond);
+}
+
+static inline bool pq_isterminated(pq_head *h)
+{
+	return h->terminate;
+}
+
+#define pq_continue(h) (!pq_isterminated(h))
 
 #ifdef __cplusplus
 }
