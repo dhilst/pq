@@ -1,6 +1,7 @@
 #include <arpa/inet.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #include "pq.h"
 
@@ -13,7 +14,6 @@ void *t1(void *arg)
 	while (pq_continue(&t1_head)) {
 		pqn *data = pq_get_tail(&t1_head, 0);
 		assert(data);
-		sprintf((char *)data->data, "PING");
 		printf("%s => %s\n", __func__, (char *)data->data);
 		pq_put_head(&t2_head, data);
 	}
@@ -27,25 +27,28 @@ void *t2(void *arg)
 	while (pq_continue(&t2_head)) {
 		pqn *data = pq_get_tail(&t2_head, 0);
 		assert(data);
-		sprintf((char *)data->data, "PONG");
 		printf("%s => %s\n", __func__, (char *)data->data);
 		pq_put_head(&t1_head, data);
 	}
 	printf("%s terminated\n", __func__);
 	return NULL;
 }
+#define ARRAY_SIZE(a) (int)(sizeof(a)/sizeof(*(a)))
 
 int main(void)
 {
 	pthread_t t1id, t2id;
-	char msg[] = "PING";
+	char *msg[] = { "Hello", "my", "dear", "friend", "How", "are", "you", "?" };
 
 	pthread_create(&t1id, NULL, t1, NULL);
 	pthread_create(&t2id, NULL, t2, NULL);
 
-	pq_put_head(&t1_head, pqn_new(msg));
+	int i;
+	for (i = 0; i < ARRAY_SIZE(msg); i++)
+	pq_put_head(&t1_head, pqn_new(msg[i]));
 
-	sleep(3);
+	while (1)
+		sleep(3);
 
 	pq_terminate(&t1_head);
 	pq_terminate(&t2_head);

@@ -33,11 +33,11 @@ extern "C" {
 
 struct pqn { /* pthread queue node */
 	void *data;
-	struct pqn *next;
+	struct pqn *next, *prev;
 };
 
 struct pq_head {
-	struct pqn *first;
+	struct pqn *first, *last;
 	pthread_mutex_t lock;
 	pthread_cond_t cond;
 	bool terminate;
@@ -46,7 +46,7 @@ struct pq_head {
 typedef struct pqn pqn;
 typedef struct pq_head pq_head;
 
-#define PQ_HEAD_INIT (pq_head){NULL,PTHREAD_MUTEX_INITIALIZER,PTHREAD_COND_INITIALIZER,false}
+#define PQ_HEAD_INIT (pq_head){NULL,NULL,PTHREAD_MUTEX_INITIALIZER,PTHREAD_COND_INITIALIZER,false}
 static inline void pq_head_init(pq_head *h)
 {
 	h->first = NULL;
@@ -82,12 +82,19 @@ static inline bool pq_isempty(pq_head *h)
 {
 	return h->first == NULL;
 }
+#define pqn_unlink(n) (n->next = n->prev = NULL)
 
 static inline int pq_put_head(pq_head *h, pqn *n)
 {
 	pthread_mutex_lock(&h->lock);
-	n->next = h->first;
-	h->first = n;
+	pqn_unlink(n); /* I think I'm paranoid */
+	if (pq_isempty(h)) {
+		h->first = h->last = n;
+	} else {
+		n->next = h->first;
+		h->first->prev = n;
+		h->first = n;
+	}
 	pthread_mutex_unlock(&h->lock);
 	pthread_cond_signal(&h->cond);
 	return 0;
@@ -106,16 +113,6 @@ static inline int pq_put_head(pq_head *h, pqn *n)
 		status;\
 	})
 
-/* lbo stands for last but one */
-#define find_lbo(head)\
-	({\
-		assert((head)->first->next);\
-		pqn *lbo;\
-		for (lbo = (head)->first; lbo->next->next; lbo = lbo->next)\
-			/* empty body */;\
-		lbo;\
-	})
-
 static inline pqn *pq_get_tail(pq_head *h, unsigned timeout)
 {
 	pqn *retptr = NULL;
@@ -125,15 +122,15 @@ static inline pqn *pq_get_tail(pq_head *h, unsigned timeout)
 		fprintf(stderr, "Error: %s", strerror(errno));
 		goto out;
 	}
-
-	if (!h->first->next) { /* first is the last, one elem/ list */
+	assert(!pq_isempty(h));
+	if (h->first == h->last) {
 		retptr = h->first;
-		h->first = NULL;
-	} else { /* our list has two or more elements */
-		pqn *lbo = find_lbo(h);
-		retptr = lbo->next;
-		lbo->next = NULL;
+		h->first = h->last = NULL;
+	} else {
+		retptr = h->last;
+		h->last = h->last->prev;
 	}
+	pqn_unlink(retptr);
 out:
 	pthread_mutex_unlock(&h->lock);
 	return retptr;
