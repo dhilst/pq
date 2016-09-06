@@ -147,8 +147,6 @@ static inline bool pq_isterminated(pq_head *h)
 	return h->terminate;
 }
 
-#define pq_continue(h) (!pq_isterminated(h))
-
 #ifdef __cplusplus
 }
 #endif
