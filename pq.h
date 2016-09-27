@@ -32,7 +32,7 @@ extern "C" {
 #endif
 
 struct pqn { /* pthread queue node */
-	void *data;
+	long data;
 	struct pqn *next, *prev;
 };
 
@@ -41,12 +41,13 @@ struct pq_head {
 	pthread_mutex_t lock;
 	pthread_cond_t cond;
 	bool terminate;
+	size_t size;
 };
 
 typedef struct pqn pqn;
 typedef struct pq_head pq_head;
 
-#define PQ_HEAD_INIT (pq_head){NULL,NULL,PTHREAD_MUTEX_INITIALIZER,PTHREAD_COND_INITIALIZER,false}
+#define PQ_HEAD_INIT (pq_head){NULL,NULL,PTHREAD_MUTEX_INITIALIZER,PTHREAD_COND_INITIALIZER,false,0}
 static inline void pq_head_init(pq_head *h)
 {
 	h->first = NULL;
@@ -74,8 +75,18 @@ static inline pqn* pqn_new(void *p)
 {
 	pqn *n = calloc(sizeof(*n), 1);
 	assert(n);
-	n->data = p;
+	n->data = (long)p;
 	return n;
+}
+
+static inline void *pqn_getdata(pqn *n)
+{
+	return (void *)n->data;
+}
+
+static inline void pqn_setdata(pqn *n, void *data)
+{
+	n->data = (long)data;
 }
 
 static inline bool pq_isempty(pq_head *h)
@@ -95,6 +106,7 @@ static inline int pq_put_head(pq_head *h, pqn *n)
 		h->first->prev = n;
 		h->first = n;
 	}
+	h->size++;
 	pthread_mutex_unlock(&h->lock);
 	pthread_cond_signal(&h->cond);
 	return 0;
@@ -131,6 +143,7 @@ static inline pqn *pq_get_tail(pq_head *h, unsigned timeout)
 		h->last = h->last->prev;
 	}
 	pqn_unlink(retptr);
+	h->size--;
 out:
 	pthread_mutex_unlock(&h->lock);
 	return retptr;
@@ -140,11 +153,46 @@ static inline void pq_terminate(pq_head *h)
 {
 	h->terminate = true;
 	pthread_cond_broadcast(&h->cond);
+	h->size = 0;
 }
 
 static inline bool pq_isterminated(pq_head *h)
 {
 	return h->terminate;
+}
+
+typedef bool (*pq_foreach_cb)(pqn *node);
+static inline void pq_foreach(pq_head *h, pq_foreach_cb cb)
+{
+	bool result;
+	pqn *pqnp;
+
+	pthread_mutex_lock(&h->lock);
+	for (pqnp = h->first; pqnp; pqnp = pqnp->next) {
+		pthread_mutex_unlock(&h->lock);
+		result = cb(pqnp);
+		if (!result)
+			break;
+		pthread_mutex_lock(&h->lock);
+	}
+	pthread_mutex_unlock(&h->lock);
+}
+
+static inline void pq_foreach_freeze(pq_head *h, pq_foreach_cb cb)
+{
+	pqn *pqnp;
+
+	pthread_mutex_lock(&h->lock);
+	for (pqnp = h->first; pqnp; pqnp = pqnp->next) {
+		if (!cb(pqnp))
+			break;
+	}
+	pthread_mutex_unlock(&h->lock);
+}
+
+static inline size_t pq_size(pq_head *h)
+{
+	return h->size;
 }
 
 #ifdef __cplusplus
