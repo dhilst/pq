@@ -60,7 +60,7 @@ static inline int __pthread_cond_timedwait_ms(pthread_cond_t *cond, pthread_mute
         int status;
         struct timespec ts;
 
-        clock_gettime(CLOCK_MONOTONIC, &ts);
+        clock_gettime(CLOCK_REALTIME, &ts);
         ts.tv_sec += timeout / 1000;
         ts.tv_nsec += (timeout % 1000 * 1000000);
         ts.tv_sec += ts.tv_nsec / 1000000000;
@@ -130,8 +130,7 @@ static inline pqn *pq_get_tail(pq_head *h, unsigned timeout)
 	pqn *retptr = NULL;
 	pthread_mutex_lock(&h->lock);
 	int status = wait_boilerplate(!pq_isempty(h), &h->cond, &h->lock, timeout);
-	if (status == -1) {
-		fprintf(stderr, "Error: %s", strerror(errno));
+	if (status) {
 		goto out;
 	}
 	assert(!pq_isempty(h));
@@ -161,8 +160,8 @@ static inline bool pq_isterminated(pq_head *h)
 	return h->terminate;
 }
 
-typedef bool (*pq_foreach_cb)(pqn *node);
-static inline void pq_foreach(pq_head *h, pq_foreach_cb cb)
+typedef bool (*pq_foreach_cb)(pqn *node, void *arg);
+static inline void pq_foreach(pq_head *h, pq_foreach_cb cb, void *arg)
 {
 	bool result;
 	pqn *pqnp;
@@ -170,7 +169,7 @@ static inline void pq_foreach(pq_head *h, pq_foreach_cb cb)
 	pthread_mutex_lock(&h->lock);
 	for (pqnp = h->first; pqnp; pqnp = pqnp->next) {
 		pthread_mutex_unlock(&h->lock);
-		result = cb(pqnp);
+		result = cb(pqnp, arg);
 		if (!result)
 			break;
 		pthread_mutex_lock(&h->lock);
@@ -178,13 +177,13 @@ static inline void pq_foreach(pq_head *h, pq_foreach_cb cb)
 	pthread_mutex_unlock(&h->lock);
 }
 
-static inline void pq_foreach_freeze(pq_head *h, pq_foreach_cb cb)
+static inline void pq_foreach_freeze(pq_head *h, pq_foreach_cb cb, void *arg)
 {
 	pqn *pqnp;
 
 	pthread_mutex_lock(&h->lock);
 	for (pqnp = h->first; pqnp; pqnp = pqnp->next) {
-		if (!cb(pqnp))
+		if (!cb(pqnp, arg))
 			break;
 	}
 	pthread_mutex_unlock(&h->lock);

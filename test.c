@@ -35,8 +35,9 @@ void *t2(void *arg)
 }
 #define ARRAY_SIZE(a) (int)(sizeof(a)/sizeof(*(a)))
 
-bool cb(pqn *n)
+bool cb(pqn *n, void *arg)
 {
+	(void)arg; /* supress warning */
 	printf("cb: %s\n", (char *)pqn_getdata(n));
 	return true;
 }
@@ -51,7 +52,7 @@ int main(void)
 	for (i = 0; i < ARRAY_SIZE(msg); i++)
 		pq_put_head(&t1_head, pqn_new(msg[i]));
 
-	pq_foreach(&t1_head, cb);
+	pq_foreach(&t1_head, cb, NULL);
 	sleep(5);
 
 	pthread_create(&t1id, NULL, t1, NULL);
