@@ -107,8 +107,8 @@ static inline int pq_put_head(pq_head *h, pqn *n)
 		h->first = n;
 	}
 	h->size++;
-	pthread_mutex_unlock(&h->lock);
 	pthread_cond_signal(&h->cond);
+	pthread_mutex_unlock(&h->lock);
 	return 0;
 }
 
